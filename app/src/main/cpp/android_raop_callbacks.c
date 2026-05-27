@@ -1,0 +1,384 @@
+/*
+ * Implements raop_callbacks_t by forwarding to Java/Kotlin via JNI.
+ * All callbacks fire from RAOP's internal pthreads, so we AttachCurrentThread.
+ */
+
+#include <stdlib.h>
+#include <string.h>
+#include <android/log.h>
+#include "android_raop_callbacks.h"
+
+#define TAG "AirPlayNative"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+
+static JNIEnv *_get_env(android_callback_ctx_t *ctx) {
+    JNIEnv *env = NULL;
+    int status = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6);
+    if (status == JNI_EDETACHED) {
+        (*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL);
+    }
+    /* Clear any pending exception from a previous callback on this thread,
+       otherwise JNI calls like NewByteArray will fatally abort. */
+    if (env && (*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+    }
+    return env;
+}
+
+void android_callbacks_init(android_callback_ctx_t *ctx, JNIEnv *env, jobject callback_obj) {
+    (*env)->GetJavaVM(env, &ctx->jvm);
+    ctx->callback_obj = (*env)->NewGlobalRef(env, callback_obj);
+    ctx->h265_enabled = 1;
+    ctx->require_pin = 0;
+    ctx->registered_count = 0;
+    memset(ctx->registered_keys, 0, sizeof(ctx->registered_keys));
+
+    jclass cls = (*env)->GetObjectClass(env, callback_obj);
+    ctx->on_video_data = (*env)->GetMethodID(env, cls, "onVideoData", "([BJZ)V");
+    ctx->on_audio_data = (*env)->GetMethodID(env, cls, "onAudioData", "([BIJI)V");
+    ctx->on_audio_format = (*env)->GetMethodID(env, cls, "onAudioFormat", "(IIZ)V");
+    ctx->on_video_size = (*env)->GetMethodID(env, cls, "onVideoSize", "(FFFF)V");
+    ctx->on_volume_change = (*env)->GetMethodID(env, cls, "onVolumeChange", "(F)V");
+    ctx->on_conn_init = (*env)->GetMethodID(env, cls, "onConnectionInit", "()V");
+    ctx->on_conn_destroy = (*env)->GetMethodID(env, cls, "onConnectionDestroy", "()V");
+    ctx->on_conn_reset = (*env)->GetMethodID(env, cls, "onConnectionReset", "(I)V");
+    ctx->on_display_pin = (*env)->GetMethodID(env, cls, "onDisplayPin", "(Ljava/lang/String;)V");
+    ctx->on_metadata = (*env)->GetMethodID(env, cls, "onMetadata", "([B)V");
+    ctx->on_coverart = (*env)->GetMethodID(env, cls, "onCoverArt", "([B)V");
+    ctx->on_progress = (*env)->GetMethodID(env, cls, "onProgress", "(JJJ)V");
+    ctx->on_dacp_id = (*env)->GetMethodID(env, cls, "onDacpId", "(Ljava/lang/String;Ljava/lang/String;)V");
+    ctx->on_audio_only = (*env)->GetMethodID(env, cls, "onAudioOnly", "(Z)V");
+    ctx->on_video_play = (*env)->GetMethodID(env, cls, "onVideoPlay", "(Ljava/lang/String;F)V");
+    ctx->on_video_scrub = (*env)->GetMethodID(env, cls, "onVideoScrub", "(F)V");
+    ctx->on_video_rate = (*env)->GetMethodID(env, cls, "onVideoRate", "(F)V");
+    ctx->on_video_stop = (*env)->GetMethodID(env, cls, "onVideoStop", "()V");
+    ctx->on_video_playback_info = (*env)->GetMethodID(env, cls, "onVideoPlaybackInfo", "()[D");
+    ctx->on_video_playlist_remove = (*env)->GetMethodID(env, cls, "onVideoPlaylistRemove", "()F");
+    ctx->on_photo = (*env)->GetMethodID(env, cls, "onPhoto",
+                                        "([BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+    (*env)->DeleteLocalRef(env, cls);
+}
+
+void android_callbacks_destroy(android_callback_ctx_t *ctx, JNIEnv *env) {
+    if (ctx->callback_obj) {
+        (*env)->DeleteGlobalRef(env, ctx->callback_obj);
+        ctx->callback_obj = NULL;
+    }
+    for (int i = 0; i < ctx->registered_count; i++) {
+        free(ctx->registered_keys[i]);
+        ctx->registered_keys[i] = NULL;
+    }
+    ctx->registered_count = 0;
+}
+
+/* --- RAOP callback implementations --- */
+
+static void _audio_process(void *cls, raop_ntp_t *ntp, audio_decode_struct *data) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env || !data->data || data->data_len <= 0) return;
+
+    jbyteArray arr = (*env)->NewByteArray(env, data->data_len);
+    (*env)->SetByteArrayRegion(env, arr, 0, data->data_len, (jbyte *)data->data);
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_audio_data,
+                           arr, (jint)data->ct, (jlong)data->ntp_time_local, (jint)data->seqnum);
+    (*env)->DeleteLocalRef(env, arr);
+}
+
+static void _video_process(void *cls, raop_ntp_t *ntp, video_decode_struct *data) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env || !data->data || data->data_len <= 0) return;
+
+    jbyteArray arr = (*env)->NewByteArray(env, data->data_len);
+    (*env)->SetByteArrayRegion(env, arr, 0, data->data_len, (jbyte *)data->data);
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_data,
+                           arr, (jlong)data->ntp_time_local, (jboolean)data->is_h265);
+    (*env)->DeleteLocalRef(env, arr);
+}
+
+static void _conn_init(void *cls) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_conn_init);
+}
+
+static void _conn_destroy(void *cls) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_conn_destroy);
+}
+
+static void _conn_reset(void *cls, int reason) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_conn_reset, (jint)reason);
+}
+
+static void _audio_set_volume(void *cls, float volume) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_volume_change, (jfloat)volume);
+}
+
+static void _audio_get_format(void *cls, unsigned char *ct, unsigned short *spf,
+                               bool *usingScreen, bool *isMedia, uint64_t *audioFormat) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_audio_format,
+                           (jint)*ct, (jint)*spf, (jboolean)*usingScreen);
+}
+
+static void _video_report_size(void *cls, float *w_src, float *h_src, float *w, float *h) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_size,
+                           (jfloat)*w_src, (jfloat)*h_src, (jfloat)*w, (jfloat)*h);
+}
+
+static void _display_pin(void *cls, char *pin) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    jstring jpin = (*env)->NewStringUTF(env, pin);
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_display_pin, jpin);
+    (*env)->DeleteLocalRef(env, jpin);
+}
+
+/* --- AirPlay video (HLS) playback callbacks ---
+   on_video_play/scrub/rate/stop fire from RAOP http threads; the Kotlin side
+   marshals them onto the main thread to drive ExoPlayer. */
+
+static void _on_video_play(void *cls, const char *location, const float start_position) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    LOGI("on_video_play: %s @ %.2f", location ? location : "(null)", start_position);
+    jstring jloc = (*env)->NewStringUTF(env, location ? location : "");
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_play, jloc, (jfloat)start_position);
+    (*env)->DeleteLocalRef(env, jloc);
+}
+
+static void _on_video_scrub(void *cls, const float position) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_scrub, (jfloat)position);
+}
+
+static void _on_video_rate(void *cls, const float rate) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_rate, (jfloat)rate);
+}
+
+static void _on_video_stop(void *cls) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    LOGI("on_video_stop");
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_stop);
+}
+
+/* Synchronous: Kotlin returns the current player state as a double[9] read from a
+   thread-safe cache (ExoPlayer position can only be polled on its own thread).
+   Layout: [duration, position, rate, ready, bufEmpty, bufFull, likelyKeepUp, seekStart, seekDuration].
+   duration == -1 signals the player has finished (handler then triggers HLS reset);
+   position == -1 signals "not ready yet" (handler returns without updating the client). */
+static void _on_video_acquire_playback_info(void *cls, playback_info_t *pi) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    /* Default to "not available" so a missing/failed callback never feeds garbage. */
+    pi->duration = 0.0;
+    pi->position = -1.0;
+    pi->rate = 0.0f;
+    pi->ready_to_play = false;
+    pi->playback_buffer_empty = true;
+    pi->playback_buffer_full = false;
+    pi->playback_likely_to_keep_up = false;
+    pi->seek_start = 0.0;
+    pi->seek_duration = 0.0;
+    if (!env) return;
+    jdoubleArray arr = (jdoubleArray)(*env)->CallObjectMethod(env, ctx->callback_obj, ctx->on_video_playback_info);
+    if (!arr) return;
+    jsize n = (*env)->GetArrayLength(env, arr);
+    if (n >= 9) {
+        jdouble v[9];
+        (*env)->GetDoubleArrayRegion(env, arr, 0, 9, v);
+        pi->duration = v[0];
+        pi->position = v[1];
+        pi->rate = (float)v[2];
+        pi->ready_to_play = v[3] != 0.0;
+        pi->playback_buffer_empty = v[4] != 0.0;
+        pi->playback_buffer_full = v[5] != 0.0;
+        pi->playback_likely_to_keep_up = v[6] != 0.0;
+        pi->seek_start = v[7];
+        pi->seek_duration = v[8];
+    }
+    (*env)->DeleteLocalRef(env, arr);
+}
+
+static float _on_video_playlist_remove(void *cls) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return 0.0f;
+    return (jfloat)(*env)->CallFloatMethod(env, ctx->callback_obj, ctx->on_video_playlist_remove);
+}
+
+static void _on_photo(void *cls, const char *data, int datalen, const char *asset_key,
+                      const char *action, const char *transition) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    jbyteArray arr = (*env)->NewByteArray(env, datalen > 0 ? datalen : 0);
+    if (datalen > 0) {
+        (*env)->SetByteArrayRegion(env, arr, 0, datalen, (jbyte *)data);
+    }
+    jstring jkey = (*env)->NewStringUTF(env, asset_key ? asset_key : "");
+    jstring jaction = (*env)->NewStringUTF(env, action ? action : "");
+    jstring jtrans = (*env)->NewStringUTF(env, transition ? transition : "");
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_photo, arr, jkey, jaction, jtrans);
+    (*env)->DeleteLocalRef(env, arr);
+    (*env)->DeleteLocalRef(env, jkey);
+    (*env)->DeleteLocalRef(env, jaction);
+    (*env)->DeleteLocalRef(env, jtrans);
+}
+
+/* Stubs for less critical callbacks */
+static void _noop(void *cls) { (void)cls; }
+static void _noop_teardown(void *cls, bool *a, bool *b) { (void)cls; (void)a; (void)b; }
+static void _video_pause(void *cls) { LOGI("video_pause"); }
+static void _video_resume(void *cls) { LOGI("video_resume"); }
+static void _conn_feedback(void *cls) { (void)cls; }
+static void _video_reset(void *cls, reset_type_t t) {
+    LOGI("video_reset %d", t);
+    /* HLS shutdown / end-of-stream: tear the ExoPlayer session down too. */
+    if (t == RESET_TYPE_HLS_SHUTDOWN || t == RESET_TYPE_HLS_EOS) {
+        android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+        JNIEnv *env = _get_env(ctx);
+        if (env) (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_stop);
+    }
+}
+static void _audio_flush(void *cls) { LOGI("audio_flush"); }
+static void _video_flush(void *cls) { LOGI("video_flush"); }
+static double _audio_set_client_volume(void *cls) { return 0.0; }
+static void _audio_set_metadata(void *cls, const void *buf, int len) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env || !buf || len <= 0) return;
+    jbyteArray arr = (*env)->NewByteArray(env, len);
+    (*env)->SetByteArrayRegion(env, arr, 0, len, (jbyte *)buf);
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_metadata, arr);
+    (*env)->DeleteLocalRef(env, arr);
+}
+
+static void _audio_set_coverart(void *cls, const void *buf, int len) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env || !buf || len <= 0) return;
+    jbyteArray arr = (*env)->NewByteArray(env, len);
+    (*env)->SetByteArrayRegion(env, arr, 0, len, (jbyte *)buf);
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_coverart, arr);
+    (*env)->DeleteLocalRef(env, arr);
+}
+
+static void _audio_remote_control_id(void *cls, const char *dacp_id, const char *active_remote) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    jstring jdacp = (*env)->NewStringUTF(env, dacp_id ? dacp_id : "");
+    jstring jremote = (*env)->NewStringUTF(env, active_remote ? active_remote : "");
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_dacp_id, jdacp, jremote);
+    (*env)->DeleteLocalRef(env, jdacp);
+    (*env)->DeleteLocalRef(env, jremote);
+}
+
+static void _audio_set_progress(void *cls, uint32_t *start, uint32_t *curr, uint32_t *end) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env || !start || !curr || !end) return;
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_progress,
+                           (jlong)*start, (jlong)*curr, (jlong)*end);
+}
+
+static void _mirror_video_running(void *cls, bool running) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return;
+    LOGI("mirror running: %d", running);
+    /* audio-only = mirror NOT running */
+    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_audio_only, (jboolean)!running);
+}
+static void _register_client(void *cls, const char *device_id, const char *pk_str, const char *name) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    (void)device_id; (void)name;
+    if (ctx->registered_count >= 16) return;
+    for (int i = 0; i < ctx->registered_count; i++) {
+        if (ctx->registered_keys[i] && strcmp(ctx->registered_keys[i], pk_str) == 0) return;
+    }
+    ctx->registered_keys[ctx->registered_count++] = strdup(pk_str);
+    LOGI("registered client pk (slot %d)", ctx->registered_count);
+}
+
+static bool _check_register(void *cls, const char *pk_str) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    for (int i = 0; i < ctx->registered_count; i++) {
+        if (ctx->registered_keys[i] && strcmp(ctx->registered_keys[i], pk_str) == 0) return true;
+    }
+    return false;
+}
+
+static int _video_set_codec(void *cls, video_codec_t codec) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    LOGI("video_set_codec: %d (h265_enabled=%d)", codec, ctx->h265_enabled);
+    if (codec == VIDEO_CODEC_H265 && !ctx->h265_enabled) return -1;
+    return 0;
+}
+
+void android_callbacks_fill(raop_callbacks_t *cbs, android_callback_ctx_t *ctx) {
+    memset(cbs, 0, sizeof(raop_callbacks_t));
+    cbs->cls = ctx;
+
+    cbs->audio_process = _audio_process;
+    cbs->video_process = _video_process;
+    cbs->video_pause = _video_pause;
+    cbs->video_resume = _video_resume;
+    cbs->conn_feedback = _conn_feedback;
+    cbs->conn_reset = _conn_reset;
+    cbs->video_reset = _video_reset;
+    cbs->conn_init = _conn_init;
+    cbs->conn_destroy = _conn_destroy;
+    cbs->conn_teardown = _noop_teardown;
+    cbs->audio_flush = _audio_flush;
+    cbs->video_flush = _video_flush;
+    cbs->audio_set_client_volume = _audio_set_client_volume;
+    cbs->audio_set_volume = _audio_set_volume;
+    cbs->audio_set_metadata = _audio_set_metadata;
+    cbs->audio_set_coverart = _audio_set_coverart;
+    cbs->audio_remote_control_id = _audio_remote_control_id;
+    cbs->audio_set_progress = _audio_set_progress;
+    cbs->audio_get_format = _audio_get_format;
+    cbs->video_report_size = _video_report_size;
+    cbs->mirror_video_running = _mirror_video_running;
+    cbs->display_pin = _display_pin;
+    cbs->video_set_codec = _video_set_codec;
+    cbs->on_video_play = _on_video_play;
+    cbs->on_video_scrub = _on_video_scrub;
+    cbs->on_video_rate = _on_video_rate;
+    cbs->on_video_stop = _on_video_stop;
+    cbs->on_video_acquire_playback_info = _on_video_acquire_playback_info;
+    cbs->on_video_playlist_remove = _on_video_playlist_remove;
+    cbs->on_photo = _on_photo;
+    if (ctx->require_pin) {
+        cbs->check_register = _check_register;
+        cbs->register_client = _register_client;
+    }
+}

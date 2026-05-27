@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark window background matching TvBackground, so cold start shows dark (not a
+         white flash) before Compose draws its first frame. -->
+    <color name="tv_background">#FF16191D</color>
+    <style name="Theme.AirPlayer" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/tv_background</item>
+        <item name="android:colorBackground">@color/tv_background</item>
+        <item name="android:statusBarColor">@color/tv_background</item>
+        <item name="android:navigationBarColor">@color/tv_background</item>
+    </style>
+</resources>
