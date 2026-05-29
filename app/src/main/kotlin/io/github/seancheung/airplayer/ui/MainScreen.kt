@@ -207,14 +207,16 @@ private fun HomeScreen(
             else -> IdleContent(viewModel)
         }
 
-        // settings entry, top-right (white over video, themed otherwise)
-        TvIconButton(
-            onClick = onOpenSettings,
-            imageVector = Icons.Default.Settings,
-            contentDescription = stringResource(R.string.tab_settings),
-            tint = if (mirroring) Color.White else MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
-        )
+        // settings entry, top-right — hidden while video is on screen so it doesn't sit on the picture
+        if (!mirroring) {
+            TvIconButton(
+                onClick = onOpenSettings,
+                imageVector = Icons.Default.Settings,
+                contentDescription = stringResource(R.string.tab_settings),
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+            )
+        }
     }
 }
 
