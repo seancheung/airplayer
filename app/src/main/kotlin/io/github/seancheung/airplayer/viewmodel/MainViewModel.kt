@@ -347,6 +347,10 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
         service?.stopServer()
     }
 
+    fun restartServer() {
+        service?.restartServer()
+    }
+
     fun onSurfaceAvailable(surface: Surface) {
         service?.setVideoSurface(surface)
     }

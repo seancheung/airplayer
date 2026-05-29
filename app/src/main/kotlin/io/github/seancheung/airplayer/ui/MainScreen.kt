@@ -56,6 +56,7 @@ fun MainScreen(
     val photo by viewModel.photo.collectAsState()
     val autoAudioMode by viewModel.autoAudioMode.collectAsState()
     var showModePrompt by remember { mutableStateOf(false) }
+    var showStopConfirm by remember { mutableStateOf(false) }
 
     // auto audio mode: skip prompt if preference is on
     LaunchedEffect(audioOnly) {
@@ -140,6 +141,11 @@ fun MainScreen(
                 LogsScreen(viewModel = viewModel, onBack = { screen = Screen.SETTINGS })
             }
             else -> {
+                // Back on the home screen normally closes the activity, sending the
+                // receiver to the background while the client keeps streaming silently.
+                // Intercept it during any active session so back means "end the cast".
+                val anyCasting = mirroring || audioOnly || videoCasting || photo != null
+                BackHandler(enabled = anyCasting && pin == null) { showStopConfirm = true }
                 HomeScreen(
                     viewModel = viewModel,
                     mirroring = mirroring,
@@ -167,6 +173,24 @@ fun MainScreen(
             },
             confirmButton = {
                 TextButton(onClick = { viewModel.dismissPin() }) { Text(stringResource(R.string.btn_ok)) }
+            }
+        )
+    }
+
+    // back-during-cast confirmation
+    if (showStopConfirm) {
+        AlertDialog(
+            onDismissRequest = { showStopConfirm = false },
+            title = { Text(stringResource(R.string.dialog_stop_cast_title)) },
+            text = { Text(stringResource(R.string.dialog_stop_cast_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStopConfirm = false
+                    viewModel.restartServer()
+                }) { Text(stringResource(R.string.btn_end)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStopConfirm = false }) { Text(stringResource(R.string.btn_cancel)) }
             }
         )
     }

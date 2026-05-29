@@ -305,12 +305,42 @@ class AirPlayService : Service(), RaopCallbackHandler {
     }
 
     fun stopServer() {
+        _teardownSession()
+        dacpController?.release()
+        mediaSession?.isActive = false
+        _serverState.value = ServerState.STOPPED
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        foregroundStarted = false
+        stopSelf()
+        log("Server stopped")
+    }
+
+    /**
+     * Soft restart: kick all currently connected clients and refresh the mDNS registration,
+     * but keep the service process / foreground notification / dacp / mediaSession alive so
+     * the receiver immediately starts accepting new connections again. Used by the "End
+     * cast" back-button flow.
+     */
+    fun restartServer() {
+        if (_serverState.value != ServerState.RUNNING) return
+        val prefs = getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val name = prefs.getString(Prefs.SERVER_NAME, Prefs.DEF_SERVER_NAME) ?: Prefs.DEF_SERVER_NAME
+        _teardownSession()
+        mediaSession?.isActive = false
+        // startServer() bails out unless state is non-RUNNING; flip to STOPPED so it proceeds,
+        // then it will promote us back to RUNNING + foreground.
+        _serverState.value = ServerState.STOPPED
+        log("Restarting server (ending current session)")
+        startServer(name, ensureServiceStarted = false)
+    }
+
+    /** Release native + nsd + renderers + per-session state. Does NOT touch service lifecycle. */
+    private fun _teardownSession() {
         if (nativeHandle != 0L) {
             NativeBridge.nativeStop(nativeHandle)
             NativeBridge.nativeDestroy(nativeHandle)
             nativeHandle = 0L
         }
-        dacpController?.release()
         nsdManager?.release()
         nsdManager = null
         wakeLock?.release()
@@ -319,18 +349,12 @@ class AirPlayService : Service(), RaopCallbackHandler {
         audioRenderer.release()
         hlsVideoPlayer.release()
         clearPhoto()
-        mediaSession?.isActive = false
         _audioOnly.value = false
         _videoCasting.value = false
         _trackInfo.value = TrackInfo()
         _positionMs.value = 0
         _durationMs.value = 0
-        _serverState.value = ServerState.STOPPED
         _connectionCount.value = 0
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        foregroundStarted = false
-        stopSelf()
-        log("Server stopped")
     }
 
     fun setVideoSurface(surface: Surface?) {

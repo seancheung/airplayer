@@ -41,7 +41,11 @@
     <string name="dialog_pin_title">AirPlay PIN</string>
     <string name="dialog_audio_mode_title">Audio Mode</string>
     <string name="dialog_audio_mode_text">Switching to Audio mode for track information and playback controls.</string>
+    <string name="dialog_stop_cast_title">End AirPlay session?</string>
+    <string name="dialog_stop_cast_text">This will disconnect the current client. The receiver will keep running and accept the next connection.</string>
     <string name="btn_ok">OK</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_end">End</string>
 
     <!-- Logs screen -->
     <string name="btn_export">Export</string>
