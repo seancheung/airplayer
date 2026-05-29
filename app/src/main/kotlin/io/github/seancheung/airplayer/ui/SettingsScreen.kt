@@ -189,11 +189,11 @@ fun SettingsScreen(
         val needsOverlayPermission = launchOnConnect && !hasOverlayPermission
         TvClickableRow(onClick = {
             if (needsOverlayPermission) {
-                ctx.startActivity(_overlayIntent(ctx))
+                ctx.startActivity(_launchPermIntent(ctx))
             } else {
                 val newVal = !launchOnConnect
                 viewModel.setLaunchOnConnect(newVal)
-                if (newVal && !canAutoLaunch(ctx)) ctx.startActivity(_overlayIntent(ctx))
+                if (newVal && !canAutoLaunch(ctx)) ctx.startActivity(_launchPermIntent(ctx))
             }
         }) {
             Column(modifier = Modifier.weight(1f)) {
@@ -426,12 +426,25 @@ fun SettingsScreen(
     }
 }
 
-private fun canAutoLaunch(ctx: Context): Boolean =
-    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(ctx)
+private fun canAutoLaunch(ctx: Context): Boolean {
+    // Full-screen-intent is the mechanism that lifts MainActivity from a backgrounded
+    // foreground service. API <34 grants it implicitly via the manifest permission; API
+    // 34+ requires the user to opt in per-app.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
+    val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+    return nm.canUseFullScreenIntent()
+}
 
-private fun _overlayIntent(ctx: Context): Intent =
-    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}"))
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+private fun _launchPermIntent(ctx: Context): Intent {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${ctx.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    } else {
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+}
 
 @Composable
 private fun SectionHeader(title: String) {

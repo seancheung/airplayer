@@ -633,12 +633,29 @@ class AirPlayService : Service(), RaopCallbackHandler {
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.notification_channel),
-            NotificationManager.IMPORTANCE_LOW
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.notification_channel),
+                NotificationManager.IMPORTANCE_LOW
+            )
         )
-        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        // Separate HIGH-importance channel used ONLY to fire the full-screen-intent that
+        // brings the activity to the foreground when a client connects while the app is
+        // backgrounded / the screen is locked. Silent (no sound / vibration / lights) —
+        // we don't want a chime, just the lift.
+        nm.createNotificationChannel(
+            NotificationChannel(
+                LAUNCH_CHANNEL_ID,
+                getString(R.string.notification_channel_launch),
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                setSound(null, null)
+                enableVibration(false)
+                enableLights(false)
+            }
+        )
     }
 
     private fun buildNotification(): Notification {
@@ -707,10 +724,35 @@ class AirPlayService : Service(), RaopCallbackHandler {
         Handler(Looper.getMainLooper()).post {
             val launchIntent = Intent(this, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            // Best-effort direct launch first — succeeds when the app is already foreground
+            // or recently visible; on Android 10+ the system silently blocks it when the
+            // service is fully backgrounded.
+            try { startActivity(launchIntent) } catch (e: Exception) { Log.w(TAG, "startActivity failed", e) }
+            // Reliable fallback: fire a full-screen-intent notification. The system promotes
+            // it to a full-screen activity launch when the device is locked / the app is
+            // backgrounded, otherwise degrades to a silent heads-up. Auto-dismissed quickly
+            // so it doesn't linger next to the persistent foreground notification.
+            val pi = PendingIntent.getActivity(
+                this, 0, launchIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val n = NotificationCompat.Builder(this, LAUNCH_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle(getString(R.string.notification_title))
+                .setContentText(getString(R.string.notification_text))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setContentIntent(pi)
+                .setFullScreenIntent(pi, true)
+                .setAutoCancel(true)
+                .setSilent(true)
+                .setTimeoutAfter(3000)
+                .build()
             try {
-                startActivity(launchIntent)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to launch activity", e)
+                (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+                    .notify(LAUNCH_NOTIFICATION_ID, n)
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Full-screen-intent denied", e)
             }
         }
     }
@@ -740,7 +782,9 @@ class AirPlayService : Service(), RaopCallbackHandler {
     companion object {
         private const val TAG = "AirPlayService"
         private const val CHANNEL_ID = "airplay_service"
+        private const val LAUNCH_CHANNEL_ID = "airplay_launch"
         private const val NOTIFICATION_ID = 1
+        private const val LAUNCH_NOTIFICATION_ID = 2
         const val ACTION_PLAY_PAUSE = "io.github.seancheung.airplayer.PLAY_PAUSE"
         const val ACTION_NEXT = "io.github.seancheung.airplayer.NEXT"
         const val ACTION_PREV = "io.github.seancheung.airplayer.PREV"
