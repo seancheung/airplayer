@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- SYSTEM_ALERT_WINDOW is the only reliable Background-Activity-Launch exemption on
+         Android TV (Sony BRAVIA etc.). The launcher keeps itself foregrounded and FSI
+         notifications are demoted by the TV notification stack, so we need the overlay
+         path to bring MainActivity to the front when a client connects. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

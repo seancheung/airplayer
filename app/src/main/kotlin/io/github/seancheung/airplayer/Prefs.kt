@@ -43,4 +43,7 @@ object Prefs {
     const val AUTO_FULLSCREEN = "auto_fullscreen"; const val DEF_AUTO_FULLSCREEN = true
     const val AUTO_AUDIO_MODE = "auto_audio_mode"; const val DEF_AUTO_AUDIO_MODE = true
     const val LAUNCH_ON_CONNECT = "launch_on_connect"; const val DEF_LAUNCH_ON_CONNECT = true
+    // One-shot flag: set to true after we've prompted the user to grant the overlay
+    // permission once. Keeps subsequent cold starts from re-popping the dialog.
+    const val LAUNCH_PERM_PROMPTED = "launch_perm_prompted"; const val DEF_LAUNCH_PERM_PROMPTED = false
 }

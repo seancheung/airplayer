@@ -55,12 +55,25 @@ fun MainScreen(
     val hlsPlayer by viewModel.hlsPlayer.collectAsState()
     val photo by viewModel.photo.collectAsState()
     val autoAudioMode by viewModel.autoAudioMode.collectAsState()
+    val launchOnConnect by viewModel.launchOnConnect.collectAsState()
+    val launchPermPrompted by viewModel.launchPermPrompted.collectAsState()
     var showModePrompt by remember { mutableStateOf(false) }
     var showStopConfirm by remember { mutableStateOf(false) }
+    var showLaunchPermPrompt by remember { mutableStateOf(false) }
 
     // auto audio mode: skip prompt if preference is on
     LaunchedEffect(audioOnly) {
         if (audioOnly && !autoAudioMode) showModePrompt = true
+    }
+
+    // First-launch one-shot: nudge the user to grant the overlay permission so that the
+    // service can lift the activity to the foreground when a client connects (the only
+    // BAL exemption that works on Android TV, where FSI notifications get demoted).
+    val ctx = LocalContext.current
+    LaunchedEffect(Unit) {
+        if (launchOnConnect && !launchPermPrompted && !canAutoLaunch(ctx)) {
+            showLaunchPermPrompt = true
+        }
     }
 
     // a pending PIN must stay visible on the home screen, not hidden behind settings/logs
@@ -173,6 +186,31 @@ fun MainScreen(
             },
             confirmButton = {
                 TextButton(onClick = { viewModel.dismissPin() }) { Text(stringResource(R.string.btn_ok)) }
+            }
+        )
+    }
+
+    // first-launch overlay-permission nudge
+    if (showLaunchPermPrompt) {
+        AlertDialog(
+            onDismissRequest = {
+                showLaunchPermPrompt = false
+                viewModel.markLaunchPermPrompted()
+            },
+            title = { Text(stringResource(R.string.dialog_launch_perm_title)) },
+            text = { Text(stringResource(R.string.dialog_launch_perm_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLaunchPermPrompt = false
+                    viewModel.markLaunchPermPrompted()
+                    runCatching { ctx.startActivity(_launchPermIntent(ctx)) }
+                }) { Text(stringResource(R.string.btn_open_settings)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showLaunchPermPrompt = false
+                    viewModel.markLaunchPermPrompted()
+                }) { Text(stringResource(R.string.btn_not_now)) }
             }
         )
     }

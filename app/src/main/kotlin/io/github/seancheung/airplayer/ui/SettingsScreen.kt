@@ -426,24 +426,26 @@ fun SettingsScreen(
     }
 }
 
-private fun canAutoLaunch(ctx: Context): Boolean {
-    // Full-screen-intent is the mechanism that lifts MainActivity from a backgrounded
-    // foreground service. API <34 grants it implicitly via the manifest permission; API
-    // 34+ requires the user to opt in per-app.
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
-    val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-    return nm.canUseFullScreenIntent()
+internal fun canAutoLaunch(ctx: Context): Boolean {
+    // To lift MainActivity from a backgrounded foreground service we need at least one of
+    // two BAL exemptions: SYSTEM_ALERT_WINDOW (works everywhere, the only path that works
+    // on Android TV where notifications are demoted) or USE_FULL_SCREEN_INTENT (works on
+    // phones/Android 14+). Below API 29 there is no BAL restriction at all.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+    if (Settings.canDrawOverlays(ctx)) return true
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (nm.canUseFullScreenIntent()) return true
+    }
+    return false
 }
 
-private fun _launchPermIntent(ctx: Context): Intent {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-        Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${ctx.packageName}"))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    } else {
-        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-            .putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
+internal fun _launchPermIntent(ctx: Context): Intent {
+    // Prefer the overlay page — it is the only path that actually works on Android TV and
+    // also works on phones. We don't bother routing API 34+ phone users to the FSI page;
+    // overlay is universal.
+    return Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }
 
 @Composable

@@ -162,6 +162,13 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     private val _launchOnConnect = MutableStateFlow(prefs.getBoolean(Prefs.LAUNCH_ON_CONNECT, Prefs.DEF_LAUNCH_ON_CONNECT))
     val launchOnConnect: StateFlow<Boolean> = _launchOnConnect.asStateFlow()
 
+    private val _launchPermPrompted = MutableStateFlow(prefs.getBoolean(Prefs.LAUNCH_PERM_PROMPTED, Prefs.DEF_LAUNCH_PERM_PROMPTED))
+    val launchPermPrompted: StateFlow<Boolean> = _launchPermPrompted.asStateFlow()
+    fun markLaunchPermPrompted() {
+        _launchPermPrompted.value = true
+        prefs.edit().putBoolean(Prefs.LAUNCH_PERM_PROMPTED, true).apply()
+    }
+
     // debug
     private val _debugEnabled = MutableStateFlow(prefs.getBoolean(Prefs.DEBUG_ENABLED, Prefs.DEF_DEBUG_ENABLED))
     val debugEnabled: StateFlow<Boolean> = _debugEnabled.asStateFlow()

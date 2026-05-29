@@ -43,6 +43,10 @@
     <string name="dialog_audio_mode_text">Switching to Audio mode for track information and playback controls.</string>
     <string name="dialog_stop_cast_title">End AirPlay session?</string>
     <string name="dialog_stop_cast_text">This will disconnect the current client. The receiver will keep running and accept the next connection.</string>
+    <string name="dialog_launch_perm_title">Allow auto-open?</string>
+    <string name="dialog_launch_perm_text">To open AirPlayer automatically when a client connects (e.g. iPhone screen mirroring), the system needs the "Display over other apps" permission. Without it the receiver still works, but you will have to switch to it manually.</string>
+    <string name="btn_open_settings">Open Settings</string>
+    <string name="btn_not_now">Not now</string>
     <string name="btn_ok">OK</string>
     <string name="btn_cancel">Cancel</string>
     <string name="btn_end">End</string>
@@ -84,7 +88,7 @@
     <string name="setting_auto_audio_mode_desc">Skip the prompt when switching to audio mode</string>
     <string name="setting_launch_on_connect">Open this application on connect</string>
     <string name="setting_launch_on_connect_desc">Show the screen when a client connects</string>
-    <string name="setting_launch_on_connect_no_permission">Tap to allow full-screen notifications</string>
+    <string name="setting_launch_on_connect_no_permission">Tap to allow display over other apps</string>
     <string name="setting_resolution">Resolution</string>
     <string name="setting_resolution_desc">Video resolution advertised to clients</string>
     <string name="setting_resolution_placeholder">[W]x[H]</string>
