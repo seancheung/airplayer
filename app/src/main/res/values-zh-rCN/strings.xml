@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AirPlayer</string>
+
+    <!-- Notification -->
+    <string name="notification_channel">AirPlayer</string>
+    <string name="notification_channel_launch">来自 AirPlay 的请求</string>
+    <string name="notification_title">AirPlayer 运行中</string>
+    <string name="notification_text">正在接受 AirPlay 连接</string>
+    <string name="notification_pin_title">需要 AirPlay PIN</string>
+    <string name="notification_pin_text">PIN：%1$s</string>
+    <string name="stop_service">停止</string>
+
+    <!-- Tabs -->
+    <string name="tab_overview">概览</string>
+    <string name="tab_logs">日志</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- Overview -->
+    <string name="server_stopped">服务已停止</string>
+    <string name="waiting_for_connection">等待连接…</string>
+    <string name="idle_hint">在 iPhone 或 iPad 上打开控制中心，从「屏幕镜像」中选择此设备</string>
+    <string name="error_starting_server">服务启动失败</string>
+    <string name="connected_count">已连接 %d 台</string>
+    <string name="error_label">错误</string>
+    <string name="stopped_label">已停止</string>
+    <string name="btn_start">启动</string>
+    <string name="btn_stop">停止</string>
+    <string name="unknown_track">未知</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_pip">画中画</string>
+    <string name="cd_fullscreen">全屏</string>
+    <string name="cd_exit_fullscreen">退出全屏</string>
+    <string name="cd_cover_art">封面</string>
+    <string name="cd_previous">上一首</string>
+    <string name="cd_play_pause">播放/暂停</string>
+    <string name="cd_next">下一首</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_pin_title">AirPlay PIN</string>
+    <string name="dialog_audio_mode_title">音频模式</string>
+    <string name="dialog_audio_mode_text">已切换到音频模式，可显示曲目信息与播放控制。</string>
+    <string name="dialog_stop_cast_title">结束 AirPlay 会话？</string>
+    <string name="dialog_stop_cast_text">将断开当前客户端。接收器会继续运行并等待下一次连接。</string>
+    <string name="dialog_launch_perm_title">允许自动打开？</string>
+    <string name="dialog_launch_perm_text">为了在客户端发起投屏（例如 iPhone 屏幕镜像）时自动打开 AirPlayer，系统需要「显示在其他应用上层」权限。不授权也能正常接收，只是需要手动切回应用。</string>
+    <string name="btn_open_settings">打开设置</string>
+    <string name="btn_not_now">暂不</string>
+    <string name="btn_ok">好</string>
+    <string name="btn_cancel">取消</string>
+    <string name="btn_end">结束</string>
+
+    <!-- Logs screen -->
+    <string name="btn_export">导出</string>
+    <string name="btn_clear">清空</string>
+    <string name="export_logs_chooser_title">导出日志</string>
+
+    <!-- Settings sections -->
+    <string name="section_server">服务</string>
+    <string name="section_connection">连接</string>
+    <string name="section_display">显示</string>
+    <string name="section_decode">解码</string>
+    <string name="section_developer">开发者</string>
+
+    <!-- Settings: Server -->
+    <string name="setting_server_name">服务名称</string>
+    <string name="setting_server_name_desc">显示给 AirPlay 客户端的名称</string>
+    <string name="setting_server_port">服务端口</string>
+    <string name="setting_server_port_desc">AirPlay 服务监听的端口</string>
+    <string name="setting_auto_start">应用启动时自动启动服务</string>
+    <string name="setting_auto_start_desc">打开应用时自动启动 AirPlay 服务</string>
+    <string name="setting_boot_auto_start">开机自动启动服务</string>
+    <string name="setting_boot_auto_start_desc">设备开机时自动启动 AirPlay 服务</string>
+    <string name="btn_save">保存</string>
+
+    <!-- Settings: Connection -->
+    <string name="setting_require_pin">使用 PIN 码 (Beta)</string>
+    <string name="setting_require_pin_desc">每次新连接都需要输入 4 位 PIN</string>
+    <string name="setting_allow_new_conn">允许新连接接入</string>
+    <string name="setting_allow_new_conn_desc">有新客户端连接时断开当前客户端</string>
+
+    <!-- Settings: Display -->
+    <string name="setting_idle_preview">空闲预览</string>
+    <string name="setting_idle_preview_desc">等待连接时显示视频画面层</string>
+    <string name="setting_auto_fullscreen">自动进入全屏</string>
+    <string name="setting_auto_fullscreen_desc">客户端连接时自动进入全屏</string>
+    <string name="setting_auto_audio_mode">自动进入音频模式</string>
+    <string name="setting_auto_audio_mode_desc">切换到音频模式时不再弹出提示</string>
+    <string name="setting_launch_on_connect">连接时自动打开本应用</string>
+    <string name="setting_launch_on_connect_desc">客户端连接时把本应用切到前台</string>
+    <string name="setting_launch_on_connect_no_permission">点按以授予「显示在其他应用上层」权限</string>
+    <string name="setting_resolution">分辨率</string>
+    <string name="setting_resolution_desc">向客户端声明的视频分辨率</string>
+    <string name="setting_resolution_placeholder">[宽]x[高]</string>
+    <string name="setting_resolution_auto">自动</string>
+    <string name="setting_resolution_width">宽</string>
+    <string name="setting_resolution_height">高</string>
+    <string name="setting_max_fps">最高帧率</string>
+    <string name="setting_max_fps_desc">向客户端声明的最高帧率</string>
+    <string name="setting_max_fps_placeholder">FPS</string>
+    <string name="setting_overscanned">过扫描补偿</string>
+    <string name="setting_overscanned_desc">为存在过扫描的显示器在全屏画面外加像素边界</string>
+    <string name="chip_custom">自定义</string>
+
+    <!-- Settings: Decode -->
+    <string name="setting_video_decoder">视频解码器</string>
+    <string name="setting_video_decoder_desc">「自动」优先硬件解码，无输出时回退到软件解码。软解画面可能更清晰，但占用更多 CPU。</string>
+    <string name="decoder_auto">自动</string>
+    <string name="decoder_hardware">硬件</string>
+    <string name="decoder_software">软件</string>
+    <string name="setting_h265">H.265 (HEVC)</string>
+    <string name="setting_h265_desc">设备支持时启用 H.265 视频解码</string>
+    <string name="setting_hls_video">AirPlay Video (HLS)</string>
+    <string name="setting_hls_video_desc">播放从 YouTube 等应用投屏的视频（而不仅是音频）</string>
+    <string name="setting_max_cast_resolution">最高视频分辨率</string>
+    <string name="setting_max_cast_resolution_desc">超过 1080p 时允许 VP9/HEVC（如 YouTube 4K），本设备可能卡顿</string>
+    <string name="res_1080p">1080p</string>
+    <string name="res_1440p">1440p</string>
+    <string name="res_4k">4K (2160p)</string>
+    <string name="res_auto">自动（不限）</string>
+    <string name="setting_proxy">视频代理</string>
+    <string name="setting_proxy_desc">将投屏视频的网络请求走代理（例如访问 YouTube）。回环地址不会走代理。</string>
+    <string name="setting_proxy_type">代理类型</string>
+    <string name="setting_proxy_type_desc">HTTP 或 SOCKS5 代理</string>
+    <string name="proxy_http">HTTP</string>
+    <string name="proxy_socks">SOCKS5</string>
+    <string name="setting_proxy_host">代理主机</string>
+    <string name="setting_proxy_host_desc">代理服务器地址（IP 或主机名）</string>
+    <string name="setting_proxy_port">代理端口</string>
+    <string name="setting_proxy_port_desc">代理服务器端口</string>
+    <string name="setting_enforce_sdr">MediaFormat.KEY_COLOR_TRANSFER</string>
+    <string name="setting_enforce_sdr_desc">把视频标记为 limited SDR；关闭以允许 HDR 源直通</string>
+    <string name="setting_alac">ALAC 音频</string>
+    <string name="setting_alac_desc">用于 AirPlay 音乐流的 ALAC 编码</string>
+    <string name="setting_sw_alac">软件 ALAC 解码器</string>
+    <string name="setting_sw_alac_desc">平台 ALAC 不可用时使用内置解码器</string>
+    <string name="setting_aac">AAC 音频</string>
+    <string name="setting_aac_desc">屏幕镜像音频使用的 AAC-ELD 或 AAC-LC 编码</string>
+
+    <!-- Settings: Developer -->
+    <string name="setting_developer_options">开发者选项</string>
+    <string name="setting_developer_options_desc">显示高级用户选项</string>
+    <string name="setting_key_allow_frame_drop">MediaFormat.KEY_ALLOW_FRAME_DROP</string>
+    <string name="setting_key_allow_frame_drop_desc">在 Android 10+ 上允许视频解码器内部丢帧以跟上节奏</string>
+    <string name="setting_realtime_decoder_priority">MediaFormat.KEY_PRIORITY</string>
+    <string name="setting_realtime_decoder_priority_desc">为音视频解码器申请实时调度</string>
+    <string name="setting_operating_rate_hint">MediaFormat.KEY_OPERATING_RATE</string>
+    <string name="setting_operating_rate_hint_desc">为视频解码器申请最高运行速率</string>
+    <string name="setting_scheduled_output_buffer_release">对齐帧速</string>
+    <string name="setting_scheduled_output_buffer_release_desc">按每帧呈现时间戳调度到匹配的 VSYNC</string>
+    <string name="setting_audio_delay">覆盖音频延迟</string>
+    <string name="setting_audio_delay_desc">向客户端报告自定义音频延迟</string>
+    <string name="audio_delay_value">%d 毫秒</string>
+    <string name="setting_audio_buffer_multiplier">音频缓冲大小</string>
+    <string name="setting_audio_buffer_multiplier_desc">AudioTrack 缓冲大小倍数</string>
+    <string name="setting_audio_buffer_multiplier_value">%d 倍</string>
+    <string name="setting_debug_overlay">显示调试叠层</string>
+    <string name="setting_debug_overlay_desc">在视频上叠加流统计：编码、FPS、码率、抖动、帧数、丢帧</string>
+    <string name="setting_benchmark_log">启用调试日志</string>
+    <string name="setting_benchmark_log_desc">向 logcat 输出流统计：编码、FPS、码率、抖动、帧数、丢帧</string>
+</resources>

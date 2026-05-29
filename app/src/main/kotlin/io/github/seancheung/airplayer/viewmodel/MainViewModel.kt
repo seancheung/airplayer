@@ -251,7 +251,7 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        ctx.startActivity(Intent.createChooser(intent, "Export logs").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        ctx.startActivity(Intent.createChooser(intent, ctx.getString(io.github.seancheung.airplayer.R.string.export_logs_chooser_title)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun loadPersistedLogs() {
