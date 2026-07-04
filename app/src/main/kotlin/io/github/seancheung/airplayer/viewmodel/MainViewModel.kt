@@ -208,6 +208,13 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     private val _playing = MutableStateFlow(true)
     val playing: StateFlow<Boolean> = _playing.asStateFlow()
 
+    // audio packets recently received (sender-side pause stops them silently)
+    private val _audioStreaming = MutableStateFlow(false)
+    val audioStreaming: StateFlow<Boolean> = _audioStreaming.asStateFlow()
+
+    private val _hlsPlaying = MutableStateFlow(false)
+    val hlsPlaying: StateFlow<Boolean> = _hlsPlaying.asStateFlow()
+
     // logs
     private val _logs = MutableStateFlow<List<String>>(emptyList())
     val logs: StateFlow<List<String>> = _logs.asStateFlow()
@@ -393,6 +400,8 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
             _positionMs.value = it.currentPositionMs()
             _durationMs.value = it.durationMs.value
             _playing.value = it.playing.value
+            _audioStreaming.value = it.audioStreamRecentlyActive()
+            _hlsPlaying.value = it.hlsVideoPlayer.playerFlow.value?.isPlaying == true
             if (_debugEnabled.value) {
                 _debugInfo.value = it.collectDebugInfo()
             }

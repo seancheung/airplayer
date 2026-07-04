@@ -399,8 +399,16 @@ class AirPlayService : Service(), RaopCallbackHandler {
     }
 
     override fun onAudioData(data: ByteArray, ct: Int, ntpTimeNs: Long, seqNum: Int) {
+        lastAudioDataAt = SystemClock.elapsedRealtime()
         audioRenderer.feedAudio(data, ct, ntpTimeNs)
     }
+
+    // Pausing from the sender stops audio packets without any pause callback, so
+    // "still streaming" can only be inferred from packet recency.
+    @Volatile private var lastAudioDataAt = 0L
+
+    fun audioStreamRecentlyActive(): Boolean =
+        SystemClock.elapsedRealtime() - lastAudioDataAt < 3_000
 
     override fun onAudioFormat(ct: Int, spf: Int, usingScreen: Boolean) {
         clearPin()

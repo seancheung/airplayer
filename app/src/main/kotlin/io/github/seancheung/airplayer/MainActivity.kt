@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Rational
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -27,6 +28,8 @@ import io.github.seancheung.airplayer.ui.theme.AirPlayTheme
 import io.github.seancheung.airplayer.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -72,9 +75,36 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                while (true) {
-                    viewModel.updateFromService()
-                    delay(200)
+                launch {
+                    while (true) {
+                        viewModel.updateFromService()
+                        delay(200)
+                    }
+                }
+                // Keep the display awake only while media is actively showing/playing;
+                // a partial wake lock alone lets the TV screensaver/standby kick in.
+                // Paused sessions (music with no audio packets, HLS with player paused)
+                // let the TV sleep normally.
+                combine(
+                    viewModel.connectionCount,
+                    viewModel.audioOnly,
+                    viewModel.videoCasting,
+                    viewModel.audioStreaming,
+                    viewModel.hlsPlaying
+                ) { conns, audioOnly, casting, streaming, hlsPlaying ->
+                    when {
+                        hlsPlaying -> true
+                        conns == 0 -> false
+                        audioOnly -> streaming // music: sleep once packets stop (pause)
+                        casting -> false       // video cast idle/paused
+                        else -> true           // mirroring / photos: screen is the content
+                    }
+                }.distinctUntilChanged().collect { active ->
+                    if (active) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
                 }
             }
         }
