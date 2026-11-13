@@ -85,6 +85,7 @@ tasks.withType<Zip>().configureEach {
 }
 
 dependencies {
+    implementation("com.googlecode.plist:dd-plist:1.28")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime)

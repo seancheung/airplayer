@@ -1,5 +1,7 @@
 package io.github.seancheung.airplayer.service
 
+import io.github.seancheung.airplayer.music.AndroidMusicSink
+import io.github.seancheung.airplayer.music.MusicReceiver
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -48,6 +50,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class AirPlayService : Service(), RaopCallbackHandler {
 
     private var nativeHandle = 0L
+    private var musicReceiver: MusicReceiver? = null
     private var nsdManager: NsdServiceManager? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var foregroundStarted = false
@@ -280,6 +283,20 @@ class AirPlayService : Service(), RaopCallbackHandler {
         nsdManager?.registerRaop(raopName, port, raopTxt)
         nsdManager?.registerAirplay(resolvedName, port, airplayTxt)
 
+        // Transient pairing is available only when the receiver permits PIN-free access.
+        if (!requirePin && android.os.Build.VERSION.SDK_INT >= 28) {
+            runCatching {
+                val musicName = "$resolvedName Music"
+                val receiver = MusicReceiver(musicName, airplayTxt.getValue("deviceid"), ::AndroidMusicSink, ::log)
+                musicReceiver = receiver
+                receiver.start()
+                nsdManager?.registerAirplay(musicName, receiver.port, receiver.records)
+            }.onFailure {
+                musicReceiver?.close()
+                musicReceiver = null
+                log("AirPlay 2 music unavailable: ${it.message}")
+            }
+        }
         _serverState.value = ServerState.RUNNING
         if (ensureServiceStarted) {
             ContextCompat.startForegroundService(this, Intent(this, AirPlayService::class.java))
@@ -336,6 +353,8 @@ class AirPlayService : Service(), RaopCallbackHandler {
 
     /** Release native + nsd + renderers + per-session state. Does NOT touch service lifecycle. */
     private fun _teardownSession() {
+        musicReceiver?.close()
+        musicReceiver = null
         if (nativeHandle != 0L) {
             NativeBridge.nativeStop(nativeHandle)
             NativeBridge.nativeDestroy(nativeHandle)

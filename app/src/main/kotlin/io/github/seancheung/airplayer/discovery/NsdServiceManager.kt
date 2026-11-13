@@ -11,7 +11,7 @@ class NsdServiceManager(private val ctx: Context) {
     private val nsdManager = ctx.getSystemService(Context.NSD_SERVICE) as NsdManager
     private var multicastLock: WifiManager.MulticastLock? = null
     private var raopRegistration: NsdManager.RegistrationListener? = null
-    private var airplayRegistration: NsdManager.RegistrationListener? = null
+    private val airplayRegistrations = mutableListOf<NsdManager.RegistrationListener>()
 
     fun acquireMulticastLock() {
         val wifi = ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -54,7 +54,7 @@ class NsdServiceManager(private val ctx: Context) {
             txtRecords.forEach { (k, v) -> setAttribute(k, v) }
         }
 
-        airplayRegistration = object : NsdManager.RegistrationListener {
+        val airplayRegistration = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(info: NsdServiceInfo) {
                 Log.i(TAG, "AirPlay registered: ${info.serviceName}")
             }
@@ -69,6 +69,7 @@ class NsdServiceManager(private val ctx: Context) {
             }
         }
         nsdManager.registerService(info, NsdManager.PROTOCOL_DNS_SD, airplayRegistration)
+        airplayRegistrations.add(airplayRegistration)
     }
 
     fun unregisterAll() {
@@ -76,10 +77,10 @@ class NsdServiceManager(private val ctx: Context) {
             try { nsdManager.unregisterService(it) } catch (_: Exception) {}
             raopRegistration = null
         }
-        airplayRegistration?.let {
+        airplayRegistrations.forEach {
             try { nsdManager.unregisterService(it) } catch (_: Exception) {}
-            airplayRegistration = null
         }
+        airplayRegistrations.clear()
     }
 
     fun release() {
